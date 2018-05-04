@@ -1,0 +1,53 @@
+# https://travis-ci.org/#!/phlax/debian-criu
+dist: trusty
+sudo: true
+language: python
+services:
+  - docker
+
+install:
+  - pip install -U docker-compose
+  - sudo apt-get install -qq -y libprotobuf-c0 libprotobuf-lite8 libnet1 libnl-3-200 iptables
+
+script:
+
+  - export CRIU_PMC_OFF=1
+
+  # build the criu images
+  - docker-compose build debian-criu ubuntu-criu
+
+  # run the criu bin for both distros
+  - docker-compose run --rm debian-criu --version
+  - docker-compose run --rm ubuntu-criu --version
+
+  # start the ubuntu container as a daemon and copy the criu binary out
+  - docker-compose up -d ubuntu-criu
+  - sudo docker cp $(docker-compose ps -q ubuntu-criu):/usr/local/bin/criu /usr/local/bin/criu
+  - sudo criu --version
+  - docker-compose stop ubuntu-criu
+
+  # start the test proc
+  - setsid ./test.sh  < /dev/null &> test.log &
+  - sleep 1 && tail test.log -n 1 && sleep 1 && tail test.log -n 1
+  - PID=$(pgrep -f test.sh)
+
+  # dump/checkpoint the proc
+  - mkdir dump && cd dump
+  - sudo criu dump -t $PID -vvv
+
+  # log has stopped...
+  - sleep 1 && tail ../test.log -n 1 && sleep 1 && tail ../test.log -n 1
+
+  # restore the proc
+  - sudo criu restore -d -vvv
+
+  # log restarted
+  - sleep 1 && tail ../test.log -n 1 && sleep 1 && tail ../test.log -n 1
+  - kill -9 $PID
+
+after_success:
+
+  - docker-compose build debian-criu ubuntu-criu
+  - docker login -u phlax -p "$DOCKER_PASSWORD"
+  - docker push phlax/debian-criu
+  - docker push phlax/ubuntu-criu
