@@ -24,15 +24,24 @@ script:
   - docker-compose up -d ubuntu-criu
   - sudo docker cp $(docker-compose ps -q ubuntu-criu):/usr/local/bin/criu /usr/local/bin/criu
   - sudo criu --version
-  - docker-compose stop ubuntu-criu
+  # - docker-compose stop ubuntu-criu
 
   # start the test proc
   - setsid ./test.sh  < /dev/null &> test.log &
   - sleep 1 && tail test.log -n 1 && sleep 1 && tail test.log -n 1
   - PID=$(pgrep -f test.sh)
 
+  # theres a leaking fd on travis - this seems very arbitrary, but not sure how
+  # else to find/purge it
+  - FD=$(lsof -p $PID | grep "136,0" | tr -s ' ' | cut -d" " -f4  | sed 's/[^0-9]*//g')
+  - lsof -p $PID
+  - echo "By my reckoning the leaks is on fd $FD"
+  - exec $FD>&-
+
   # dump/checkpoint the proc
   - mkdir dump && cd dump
+  - ps axf
+  - sudo lsof -p $PID
   - sudo criu dump -t $PID -vvv
 
   # log has stopped...
