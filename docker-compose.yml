@@ -8,22 +8,22 @@ services:
     image: phlax/debian-criu
     build:
       context: ./docker
-    tmpfs: /run
     init: true
     pid: "host"
+    tmpfs: /run
     volumes:
       - /sys/fs/cgroup:/sys/fs/cgroup:ro
-      - /:/host
 
   ubuntu-criu:
     privileged: true
     image: phlax/debian-criu:ubuntu-trusty
+    pid: "host"
     build:
       context: ./docker
       args:
       - BUILD_FROM=ubuntu:14.04
       - BUILD_PKGS=libprotobuf-c0-dev libprotobuf-dev libnet1-dev libnl-3-dev libcap-dev
-      - RUN_PKGS=libprotobuf-c0 libprotobuf-lite8 libnet1 libnl-3-200
+      - RUN_PKGS=libprotobuf-c0 libprotobuf-lite8 libnet1 libnl-3-200 iptables
     tmpfs: /run
     volumes:
       - /sys/fs/cgroup:/sys/fs/cgroup:ro
