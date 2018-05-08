@@ -11,7 +11,7 @@ FROM $BUILD_FROM as root
 MAINTAINER Ryan Northey <ryan@synca.io>
 
 ARG CRIU_VERSION=3.8.1
-ARG RUN_PKGS='libprotobuf-c1 libprotobuf-lite10 libnet1 libnl-3-200'
+ARG RUN_PKGS='libprotobuf-c1 libprotobuf-lite10 libnet1 libnl-3-200 iptables'
 
 ENV DEBIAN_FRONTEND=noninteractive \
     CRIU_VERSION=$CRIU_VERSION
