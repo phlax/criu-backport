@@ -16,7 +16,7 @@ services:
 
   ubuntu-criu:
     privileged: true
-    image: phlax/debian-criu:ubuntu-trusty
+    image: phlax/debian-criu:ubuntu-bionic
     pid: "host"
     build:
       context: ./docker

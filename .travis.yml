@@ -1,62 +1,25 @@
 # https://travis-ci.org/#!/phlax/debian-criu
-dist: trusty
-sudo: true
-language: python
-services:
-  - docker
 
 install:
-  - pip install -U docker-compose
-  - sudo apt-get install -qq -y libprotobuf-c0 libprotobuf-lite8 libnet1 libnl-3-200 iptables
+  - make docker
 
 script:
+  - ls build | grep criu | grep deb
+  - docker images | grep criu-backport
+  - >
+    docker run --privileged -it
+    -v `pwd`/testproc.sh:/tmp/testproc.sh
+    -v `pwd`/runtest.sh:/tmp/runtest.sh
+    phlax/criu-backport
+    /tmp/runtest.sh
 
-  - export CRIU_PMC_OFF=1
+before_deploy:
+  - echo $DOCKER_API_TOKEN | docker login -u phlax --password-stdin
 
-  # build the criu images
-  - docker-compose build debian-criu ubuntu-criu
-
-  # run the criu bin for both distros
-  - docker-compose run --rm debian-criu --version
-  - docker-compose run --rm ubuntu-criu --version
-
-  # start the ubuntu container as a daemon and copy the criu binary out
-  - docker-compose up -d ubuntu-criu
-  - sudo docker cp $(docker-compose ps -q ubuntu-criu):/usr/local/bin/criu /usr/local/bin/criu
-  - sudo criu --version
-  # - docker-compose stop ubuntu-criu
-
-  # start the test proc
-  - setsid ./test.sh  < /dev/null &> test.log &
-  - sleep 1 && tail test.log -n 1 && sleep 1 && tail test.log -n 1
-  - PID=$(pgrep -f test.sh)
-
-  # theres a leaking fd on travis - this seems very arbitrary, but not sure how
-  # else to find/purge it
-  - FD=$(lsof -p $PID | grep "136,0" | tr -s ' ' | cut -d" " -f4  | sed 's/[^0-9]*//g')
-  - lsof -p $PID
-  - echo "By my reckoning the leaks is on fd $FD"
-  - exec $FD>&-
-
-  # dump/checkpoint the proc
-  - mkdir dump && cd dump
-  - ps axf
-  - sudo lsof -p $PID
-  - sudo criu dump -t $PID -vvv
-
-  # log has stopped...
-  - sleep 1 && tail ../test.log -n 1 && sleep 1 && tail ../test.log -n 1
-
-  # restore the proc
-  - sudo criu restore -d -vvv
-
-  # log restarted
-  - sleep 1 && tail ../test.log -n 1 && sleep 1 && tail ../test.log -n 1
-  - kill -9 $PID
-
-after_success:
-
-  - docker-compose build debian-criu ubuntu-criu
-  - docker login -u phlax -p "$DOCKER_PASSWORD"
-  - docker push phlax/debian-criu
-  - docker push phlax/ubuntu-criu
+deploy:
+  provider: script
+  script: make hub-image
+  skip_cleanup: true
+  on:
+    all_branches: true
+    condition: $TRAVIS_BRANCH =~ ^(master)$
